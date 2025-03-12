@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <stdexcept>
 
 /**
  * 3D Vector class as specified in the requirements.
@@ -12,7 +13,7 @@ struct Vector3 {
     /**
      * Computes the vector difference (this - other).
      */
-    Vector3 operator-(const Vector3& other) const {
+    constexpr Vector3 operator-(const Vector3& other) const {
         return {x - other.x, y - other.y, z - other.z};
     }
     
@@ -27,8 +28,9 @@ struct Vector3 {
      * Returns a normalized (unit length) version of this vector.
      */
     Vector3 normalize() const {
+        static constexpr double EPSILON = 1e-10;
         double mag = magnitude();
-        if (mag < 1e-10) {
+        if (mag < EPSILON) {
             throw std::domain_error("Cannot normalize vector with zero magnitude");
         }
         return {x/mag, y/mag, z/mag};
@@ -37,9 +39,7 @@ struct Vector3 {
     /**
      * Computes the dot product with another vector.
      */
-    double dot(const Vector3& other) const {
+    constexpr double dot(const Vector3& other) const {
         return x * other.x + y * other.y + z * other.z;
     }
 };
-
-

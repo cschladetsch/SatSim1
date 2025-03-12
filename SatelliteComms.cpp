@@ -7,7 +7,7 @@ SatelliteComms::SatelliteComms(
     const std::vector<TimedSatelliteState>& stateTimeline
 ) : 
     planetRadius_(planetRadius),
-    beamConeAngleRadians_(beamConeAngleDegrees * M_PI / 180.0),
+    beamConeAngleRadians_(beamConeAngleDegrees * DEG_TO_RAD),
     stateTimeline_(stateTimeline)
 {
     // Validate the timeline is chronologically ordered
@@ -40,6 +40,10 @@ bool SatelliteComms::canReceiveTransmission(const Vector3& pointP, double time) 
 }
 
 std::optional<double> SatelliteComms::nextTransmissionTime(const Vector3& pointP, double startTime) const {
+    // Search algorithm constants
+    static constexpr double TIME_STEP = 1.0;    // Initial time step (1 second)
+    static constexpr double PRECISION = 1e-6;   // Precision threshold for binary search
+    
     // If we're already beyond our timeline, we can't predict future states
     if (startTime >= stateTimeline_.back().timestamp) {
         return std::nullopt;
@@ -50,20 +54,17 @@ std::optional<double> SatelliteComms::nextTransmissionTime(const Vector3& pointP
         return startTime;
     }
     
-    // Define search parameters
-    const double timeStep = 1.0;       // Initial time step (1 second)
-    const double precision = 1e-6;     // Precision threshold for binary search
-    double currentTime = startTime + timeStep;
-    
     // Linear search to find approximate next transmission time
+    double currentTime = startTime + TIME_STEP;
+    
     while (currentTime <= stateTimeline_.back().timestamp) {
         if (canReceiveTransmission(pointP, currentTime)) {
             // Found approximate time, now refine with binary search
-            double lowerBound = currentTime - timeStep;
+            double lowerBound = currentTime - TIME_STEP;
             double upperBound = currentTime;
             
             // Binary search to find the exact transition point
-            while (upperBound - lowerBound > precision) {
+            while (upperBound - lowerBound > PRECISION) {
                 double midTime = (lowerBound + upperBound) / 2.0;
                 if (canReceiveTransmission(pointP, midTime)) {
                     upperBound = midTime;  // Transmission possible at midTime
@@ -75,7 +76,7 @@ std::optional<double> SatelliteComms::nextTransmissionTime(const Vector3& pointP
             return upperBound;  // Return earliest time transmission is possible
         }
         
-        currentTime += timeStep;
+        currentTime += TIME_STEP;
     }
     
     // No transmission time found within timeline
@@ -125,14 +126,16 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     
     // Use quaternions for proper direction interpolation
     // Create quaternion that rotates from reference direction (e.g., {0,0,1}) to actual directions
-    Quaternion q1 = Quaternion::fromVectors({0,0,1}, before->state.beamDirection);
-    Quaternion q2 = Quaternion::fromVectors({0,0,1}, after->state.beamDirection);
+    static constexpr Vector3 REFERENCE_DIRECTION = {0.0, 0.0, 1.0};
+    
+    Quaternion q1 = Quaternion::fromVectors(REFERENCE_DIRECTION, before->state.beamDirection);
+    Quaternion q2 = Quaternion::fromVectors(REFERENCE_DIRECTION, after->state.beamDirection);
     
     // Perform spherical linear interpolation (SLERP) between the two quaternions
     Quaternion interpolatedQ = Quaternion::slerp(q1, q2, t);
     
     // Apply the interpolated rotation to the reference direction to get the interpolated beam direction
-    Vector3 interpolatedDirection = interpolatedQ.rotateVector({0,0,1});
+    Vector3 interpolatedDirection = interpolatedQ.rotateVector(REFERENCE_DIRECTION);
     
     return {interpolatedPosition, interpolatedDirection};
 }

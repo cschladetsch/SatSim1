@@ -10,17 +10,22 @@
  */
 class Quaternion {
 public:
+    // Threshold constants
+    static constexpr double EPSILON = 1e-10;
+    static constexpr double NEAR_PARALLEL_THRESHOLD = 0.99999;
+    static constexpr double NEAR_OPPOSITE_THRESHOLD = -0.99999;
+    
     double w, x, y, z;
     
     /**
      * Default constructor - creates identity quaternion
      */
-    Quaternion() : w(1.0), x(0.0), y(0.0), z(0.0) {}
+    constexpr Quaternion() : w(1.0), x(0.0), y(0.0), z(0.0) {}
     
     /**
      * Construct quaternion from components
      */
-    Quaternion(double w, double x, double y, double z) : w(w), x(x), y(y), z(z) {}
+    constexpr Quaternion(double w, double x, double y, double z) : w(w), x(x), y(y), z(z) {}
     
     /**
      * Create a quaternion that rotates from vector 'from' to vector 'to'
@@ -34,15 +39,15 @@ public:
         double dot = fromNorm.dot(toNorm);
         
         // If vectors are very close, return identity quaternion
-        if (dot > 0.99999) {
+        if (dot > NEAR_PARALLEL_THRESHOLD) {
             return Quaternion(1.0, 0.0, 0.0, 0.0);
         }
         
         // If vectors are opposite, create a 180-degree rotation around an arbitrary perpendicular axis
-        if (dot < -0.99999) {
+        if (dot < NEAR_OPPOSITE_THRESHOLD) {
             // Find an axis perpendicular to fromNorm
             Vector3 axis = {1.0, 0.0, 0.0};
-            if (std::abs(fromNorm.x) > 0.99999) {
+            if (std::abs(fromNorm.x) > NEAR_PARALLEL_THRESHOLD) {
                 axis = {0.0, 1.0, 0.0};
             }
             
@@ -72,7 +77,7 @@ public:
         double axisMag = std::sqrt(axis.x*axis.x + axis.y*axis.y + axis.z*axis.z);
         
         // Normalize axis
-        if (axisMag > 1e-10) {
+        if (axisMag > EPSILON) {
             axis.x /= axisMag;
             axis.y /= axisMag;
             axis.z /= axisMag;
@@ -95,7 +100,7 @@ public:
      */
     Quaternion normalize() const {
         double mag = std::sqrt(w*w + x*x + y*y + z*z);
-        if (mag < 1e-10) {
+        if (mag < EPSILON) {
             return Quaternion(1.0, 0.0, 0.0, 0.0);  // Return identity if magnitude is zero
         }
         return Quaternion(w/mag, x/mag, y/mag, z/mag);
@@ -129,7 +134,7 @@ public:
         double sinTheta = std::sin(theta);
         
         // If angle is very small, use linear interpolation
-        if (sinTheta < 1e-10) {
+        if (sinTheta < EPSILON) {
             return Quaternion(
                 qa.w * (1.0 - t) + qb.w * t,
                 qa.x * (1.0 - t) + qb.x * t,

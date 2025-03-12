@@ -20,11 +20,12 @@ int main() {
     
     // Create timeline with 10 samples over one full orbit
     constexpr int numSamples = 10;
-    constexpr double timeStep = 1000.0;  // Each sample 1000 seconds apart
+    constexpr double timeStep = 1000.0;      // Each sample 1000 seconds apart
+    constexpr double TWO_PI = 2.0 * M_PI;    // Full circle in radians
     
     for (int i = 0; i < numSamples; ++i) {
         double time = i * timeStep;
-        double angle = (2 * M_PI * i) / numSamples;
+        double angle = (TWO_PI * i) / numSamples;
         
         // Calculate position in circular orbit (XY plane)
         Vector3 position = {
@@ -56,7 +57,9 @@ int main() {
     
     // Test Case 1: Point directly in satellite's beam path
     {
-        Vector3 pointP = {15000.0, 0.0, 0.0};  // Further out along X-axis at t=0
+        constexpr double pointDistance = 15000.0;  // Distance from origin for test points
+        
+        Vector3 pointP = {pointDistance, 0.0, 0.0};  // Further out along X-axis at t=0
         double time = 0.0;
         
         bool canReceive = comms.canReceiveTransmission(pointP, time);
@@ -94,7 +97,9 @@ int main() {
     
     // Test Case 3: Point behind planet (occlusion test)
     {
-        Vector3 pointP = {-8000.0, 0.0, 0.0};  // Behind planet relative to satellite at t=0
+        constexpr double behindPlanetDistance = -8000.0;  // Negative to place behind planet
+        
+        Vector3 pointP = {behindPlanetDistance, 0.0, 0.0};  // Behind planet relative to satellite at t=0
         double time = 0.0;
         
         bool canReceive = comms.canReceiveTransmission(pointP, time);

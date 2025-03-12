@@ -31,6 +31,9 @@ struct TimedSatelliteState {
  */
 class SatelliteComms {
 public:
+    // Constants for algorithms
+    static constexpr double DEG_TO_RAD = M_PI / 180.0;
+    
     /**
      * Constructs the satellite communications system.
      * 
@@ -74,8 +77,6 @@ private:
     double planetRadius_;
     double beamConeAngleRadians_; // Stored in radians for efficient calculations
     std::vector<TimedSatelliteState> stateTimeline_;
-    
-
     
     /**
      * Checks if a point is within the satellite's beam cone.
