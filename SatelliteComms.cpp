@@ -54,33 +54,40 @@ std::optional<double> SatelliteComms::nextTransmissionTime(const Vector3& pointP
         return startTime;
     }
     
-    // Linear search to find approximate next transmission time
-    double currentTime = startTime + TIME_STEP;
-    
-    while (currentTime <= stateTimeline_.back().timestamp) {
-        if (canReceiveTransmission(pointP, currentTime)) {
-            // Found approximate time, now refine with binary search
-            double lowerBound = currentTime - TIME_STEP;
-            double upperBound = currentTime;
-            
-            // Binary search to find the exact transition point
-            while (upperBound - lowerBound > PRECISION) {
-                double midTime = (lowerBound + upperBound) / 2.0;
-                if (canReceiveTransmission(pointP, midTime)) {
-                    upperBound = midTime;  // Transmission possible at midTime
-                } else {
-                    lowerBound = midTime;  // Transmission not possible at midTime
-                }
-            }
-            
-            return upperBound;  // Return earliest time transmission is possible
+    // Step 1: Find the first time where transmission is possible
+    double approximateTime = startTime + TIME_STEP;
+    bool foundTransition = false;
+    while (approximateTime <= stateTimeline_.back().timestamp) {
+        if (canReceiveTransmission(pointP, approximateTime)) {
+            foundTransition = true;
+            break;
         }
-        
-        currentTime += TIME_STEP;
+        approximateTime += TIME_STEP;
     }
     
-    // No transmission time found within timeline
-    return std::nullopt;
+    if (!foundTransition) {
+        return std::nullopt;
+    }
+    
+    // Step 2: Expand the search window backward to find the earliest time transmission becomes possible
+    double lowerBound = approximateTime;
+    while (lowerBound - TIME_STEP >= stateTimeline_.front().timestamp &&
+           canReceiveTransmission(pointP, lowerBound - TIME_STEP)) {
+        lowerBound -= TIME_STEP;
+    }
+    
+    // Step 3: Refine the transition time with binary search between lowerBound and approximateTime
+    double refinedTime = approximateTime;
+    while (refinedTime - lowerBound > PRECISION) {
+        double midTime = (lowerBound + refinedTime) / 2.0;
+        if (canReceiveTransmission(pointP, midTime)) {
+            refinedTime = midTime;  // Transmission possible at midTime
+        } else {
+            lowerBound = midTime;  // Transmission not possible at midTime
+        }
+    }
+    
+    return refinedTime;  // Return the earliest time transmission is possible
 }
 
 SatelliteState SatelliteComms::interpolateState(double time) const {
@@ -144,8 +151,6 @@ bool SatelliteComms::isInBeamCone(const Vector3& pointP, const SatelliteState& s
     // Vector from satellite to point P
     Vector3 toPointVector = pointP - state.position;
     
-    // Skip zero-distance check (would be a degenerate case)
-    
     // Normalize vectors
     Vector3 normalizedBeamDir = state.beamDirection.normalize();
     Vector3 normalizedToPoint = toPointVector.normalize();
@@ -154,7 +159,6 @@ bool SatelliteComms::isInBeamCone(const Vector3& pointP, const SatelliteState& s
     double cosAngle = normalizedBeamDir.dot(normalizedToPoint);
     
     // Inside cone if cosine of angle is greater than or equal to cosine of cone angle
-    // (larger cosine means smaller angle)
     return cosAngle >= std::cos(beamConeAngleRadians_);
 }
 
@@ -172,24 +176,21 @@ bool SatelliteComms::isPlanetBlocking(const Vector3& pointP, const SatelliteStat
     Vector3 originToSat = state.position;
     
     // Project originToSat onto the normalized direction from satellite to point
-    // This gives the distance along the line where we find the closest approach to origin
     double projection = originToSat.dot(dirToPoint);
     
-    // If projection is negative, closest point is "behind" the satellite (away from point P)
-    // If projection > distance to point, closest point is "beyond" point P
-    // In both cases, there's no intersection with planet between satellite and point P
+    // If projection is negative or beyond pointP, planet doesn't block
     if (projection < 0 || projection > distToPoint) {
         return false;
     }
     
-    // Calculate the closest point on the line to origin
+    // Calculate the closest point on the line from satellite to pointP to the origin
     Vector3 closestPoint = {
         state.position.x - projection * dirToPoint.x,
         state.position.y - projection * dirToPoint.y,
         state.position.z - projection * dirToPoint.z
     };
     
-    // Distance from closest point to origin
+    // Distance from the closest point to the origin
     double closestDist = closestPoint.magnitude();
     
     // Planet blocks if the closest approach is less than the planet radius
