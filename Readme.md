@@ -1,7 +1,5 @@
 # Satellite Communications API
 
-Technical assignment for application as Team Lead in Simulation.
-
 A C++17 library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
 
 ## System Architecture Overview
