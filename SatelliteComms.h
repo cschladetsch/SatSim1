@@ -165,6 +165,15 @@ private:
     mutable std::unordered_map<double, CacheEntry, DoubleHash> stateCache_;
     
     /**
+     * Helper method to add a state to the cache with proper management.
+     * Ensures the cache doesn't exceed MAX_CACHE_SIZE by removing entries when needed.
+     * 
+     * @param time The simulation time for this state
+     * @param state The satellite state to cache
+     */
+    void addToCache(double time, const SatelliteState& state) const;
+    
+    /**
      * Checks if a point is within the satellite's beam cone.
      * Optimized to use pre-computed cosine values.
      * 

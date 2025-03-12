@@ -147,20 +147,16 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     if (it == stateTimeline_.begin()) {
         SatelliteState result = stateTimeline_.front().state;
         
-        // Cache the result
-        if (stateCache_.size() < MAX_CACHE_SIZE) {
-            stateCache_[time] = {result, std::chrono::steady_clock::now()};
-        }
+        // Add to cache with cache management
+        addToCache(time, result);
         
         return result;
     }
     if (it == stateTimeline_.end()) {
         SatelliteState result = stateTimeline_.back().state;
         
-        // Cache the result
-        if (stateCache_.size() < MAX_CACHE_SIZE) {
-            stateCache_[time] = {result, std::chrono::steady_clock::now()};
-        }
+        // Add to cache with cache management
+        addToCache(time, result);
         
         return result;
     }
@@ -173,20 +169,16 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     if (time == before->timestamp) {
         SatelliteState result = before->state;
         
-        // Cache the result
-        if (stateCache_.size() < MAX_CACHE_SIZE) {
-            stateCache_[time] = {result, std::chrono::steady_clock::now()};
-        }
+        // Add to cache with cache management
+        addToCache(time, result);
         
         return result;
     }
     if (time == after->timestamp) {
         SatelliteState result = after->state;
         
-        // Cache the result
-        if (stateCache_.size() < MAX_CACHE_SIZE) {
-            stateCache_[time] = {result, std::chrono::steady_clock::now()};
-        }
+        // Add to cache with cache management
+        addToCache(time, result);
         
         return result;
     }
@@ -212,12 +204,47 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     // Create the interpolated state
     SatelliteState result = {interpolatedPosition, interpolatedDirection};
     
-    // Cache the result
-    if (stateCache_.size() < MAX_CACHE_SIZE) {
-        stateCache_[time] = {result, std::chrono::steady_clock::now()};
-    }
+    // Add to cache with cache management
+    addToCache(time, result);
     
     return result;
+}
+
+void SatelliteComms::addToCache(double time, const SatelliteState& state) const {
+    auto now = std::chrono::steady_clock::now();
+    
+    // If the cache is full, we need to make room for the new entry
+    if (stateCache_.size() >= MAX_CACHE_SIZE) {
+        // First attempt to find and remove an expired entry
+        bool removedExpired = false;
+        
+        for (auto it = stateCache_.begin(); it != stateCache_.end(); ++it) {
+            if (now - it->second.timestamp >= CACHE_TTL) {
+                stateCache_.erase(it);
+                removedExpired = true;
+                break;  // Found and removed one expired entry
+            }
+        }
+        
+        // If no expired entries were found but the cache is still full,
+        // remove the oldest entry (least recently used)
+        if (!removedExpired && stateCache_.size() >= MAX_CACHE_SIZE) {
+            auto oldestIt = stateCache_.begin();
+            auto oldestTime = oldestIt->second.timestamp;
+            
+            for (auto it = stateCache_.begin(); it != stateCache_.end(); ++it) {
+                if (it->second.timestamp < oldestTime) {
+                    oldestIt = it;
+                    oldestTime = it->second.timestamp;
+                }
+            }
+            
+            stateCache_.erase(oldestIt);
+        }
+    }
+    
+    // Now we can safely add the new entry
+    stateCache_[time] = {state, now};
 }
 
 bool SatelliteComms::isInBeamCone(const Vector3& pointP, const SatelliteState& state) const {
