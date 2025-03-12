@@ -25,6 +25,7 @@ enable_testing()
 
 # Option to enable or disable tests
 option(BUILD_TESTS "Build the tests" ON)
+option(ENABLE_PERFORMANCE_TESTS "Enable performance tests" ON)
 
 if(BUILD_TESTS)
     # Fetch and configure Google Test
@@ -38,10 +39,11 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
-    # Create a single test executable with both test files
+    # Create a single test executable with all test files
     add_executable(SatelliteTests 
         tests/test.cpp
         tests/additional_tests.cpp
+        tests/performance_tests.cpp
     )
     target_link_libraries(SatelliteTests PRIVATE 
         SatelliteComms
@@ -49,8 +51,16 @@ if(BUILD_TESTS)
         gtest_main
     )
     
-    # Add test to CTest
+    # Add compile definition to enable performance tests by default
+    if(ENABLE_PERFORMANCE_TESTS)
+        target_compile_definitions(SatelliteTests PRIVATE ENABLE_PERFORMANCE_TESTS)
+    endif()
+    
+    # Add test to CTest with increased timeout if performance tests are enabled
     add_test(NAME SatelliteTests COMMAND SatelliteTests)
+    if(ENABLE_PERFORMANCE_TESTS)
+        set_tests_properties(SatelliteTests PROPERTIES TIMEOUT 300) # 5-minute timeout
+    endif()
 endif()
 
 # Installation rules
@@ -60,4 +70,4 @@ install(TARGETS SatelliteComms SatelliteApp
     ARCHIVE DESTINATION lib
 )
 
-install(FILES SatelliteComms.h DESTINATION include)
+install(FILES SatelliteComms.h Vector3.h Quaternion.h DESTINATION include)

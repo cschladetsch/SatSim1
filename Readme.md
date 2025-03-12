@@ -2,40 +2,105 @@
 
 Technical assignment for Progranda application as Team Lead in Simulation.
 
-Provides a C++17 library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
+A C++17 library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
 
-## Overview
+## System Architecture Overview
 
-This library provides tools to determine:
-1. Whether a point in 3D space can receive a transmission from a satellite at a given time
-2. When the next time is that a point will be able to receive a transmission
+The Satellite Communications System determines when a point in 3D space can receive transmissions from a satellite in orbit. The architecture follows object-oriented design principles with a focus on performance, accuracy, and maintainability.
 
-The solution accounts for:
-- The satellite's position and beam direction changing over time
-- Interpolation between known state samples
-- Whether the point is within the satellite's beam cone
-- Whether the planet blocks the transmission path
+### Key Capabilities
+1. Determine if a point can receive a transmission at a specific time
+2. Find the next time a point will be able to receive a transmission
 
-## Features
+### Core Components
 
-- Linear interpolation of satellite position and beam direction over time
-- Efficient cone angle calculation using dot products
-- Planet occlusion detection using geometric line-sphere intersection
-- Binary search refinement for finding exact transmission times
-- Comprehensive unit tests with Google Test
-- Clear, well-documented API with meaningful error handling
+#### Vector3 Class
+The foundation of spatial calculations representing a point or direction in 3D space.
+- Basic vector operations (subtraction, addition, scaling)
+- Magnitude calculation with SIMD optimization
+- Normalization and dot product computation
+- Distance and cross product operations
+
+#### Quaternion Class
+Provides robust rotational interpolation for accurately representing changes in beam direction.
+- Construction from vector pairs
+- Spherical Linear Interpolation (SLERP)
+- Vector rotation with proper great circle paths
+- Handling of edge cases (parallel/anti-parallel vectors)
+
+#### Satellite State Representation
+- `SatelliteState`: Position and beam direction at a specific moment
+- `TimedSatelliteState`: Pairs a state with a timestamp
+
+#### SatelliteComms Class
+The main API class implementing transmission visibility determination.
+- Timeline management and validation
+- State interpolation between samples
+- Beam cone visibility checking
+- Planet occlusion detection
+- Transmission time prediction
+- State caching for performance
+
+## Core Algorithms
+
+### State Interpolation
+For any given time point:
+1. Binary search finds surrounding timeline entries
+2. Linear interpolation calculates position
+3. Quaternion SLERP computes correctly interpolated beam direction
+4. Results are cached with expiration time
+
+### Beam Cone Visibility
+Determines if a point is within the satellite's transmission cone:
+1. Calculate vector from satellite to point
+2. Compute dot product with beam direction
+3. Compare against pre-computed cosine of beam cone angle
+
+### Planetary Occlusion
+Checks if the planet blocks the transmission path:
+1. Project the satellite position onto the line-of-sight
+2. Find the closest approach to planet center
+3. Compare this distance to the planet radius
+
+### Next Transmission Time
+Uses a hybrid search approach:
+1. Linear search with adaptive step size
+2. Binary search refinement for precision
+3. Early exit conditions for optimization
+
+## Performance Optimizations
+
+The system implements several performance enhancements:
+
+### Hardware Acceleration
+- SIMD instructions (SSE3/SSE2) for vector operations
+- Graceful degradation on systems without SSE support
+
+### Memory Management
+- Time-limited caching with TTL mechanism
+- Maximum cache size constraints
+- Periodic cleanup of expired entries
+
+### Computational Efficiency
+- Pre-computed constants (beam angle cosine)
+- Early exit conditions in algorithms
+- Dot product for angle comparison instead of arc-cosine
+- Adaptive step sizing based on orbital characteristics
 
 ## API Usage
 
 ```cpp
 // Initialize with planet radius, beam cone angle, and state timeline
-SatelliteComms comms(planetRadius, beamConeAngle, stateTimeline);
+SatelliteComms comms(planetRadius, beamConeAngleDegrees, stateTimeline);
 
 // Check if a point can receive transmission at a given time
 bool canReceive = comms.canReceiveTransmission(pointP, time);
 
 // Find next time transmission is possible (if any)
 std::optional<double> nextTime = comms.nextTransmissionTime(pointP, startTime);
+
+// For applications with memory constraints or long lifetimes
+comms.clearCache();  // Clear the state interpolation cache
 ```
 
 ## Building and Testing
@@ -67,12 +132,33 @@ ctest
 
 ### Key Assumptions
 - Planet is centered at origin (0,0,0)
-- Beam cone has its apex at the satellite position and extends along the beam direction
-- Linear interpolation is adequate for positions between samples
-- Timeline is chronologically ordered and contains sufficient samples
+- Beam cone has its apex at the satellite position
+- Timeline is chronologically ordered
+- Time is measured from a universal datum
 
-### Performance Optimization
-- Dot product for angle calculation rather than explicit trigonometry
-- Binary search refinement for efficient next transmission time calculation
-- Pre-computing beam cone angle in radians
+### Error Handling
+- Constructor validation for timeline ordering and sample count
+- Safe vector normalization with edge case handling
+- Range checking for time values
+- `std::optional` return for potentially impossible operations
 
+## Extension Possibilities
+
+The architecture supports several potential extensions:
+- Multiple satellites tracking
+- Moving reception points
+- Variable beam parameters
+- Extended visibility window forecasting
+- Different interpolation strategies for specialized orbits
+
+## Project Structure
+
+- `Vector3.h`: 3D vector implementation with SIMD optimization
+- `Quaternion.h`: Quaternion implementation for direction interpolation
+- `SatelliteComms.h/.cpp`: Main API implementation
+- `main.cpp`: Example application demonstrating API usage
+- `tests/`: Comprehensive test suite
+  - Basic functionality tests
+  - Edge case handling
+  - Advanced orbital configurations
+  - Performance benchmarking
