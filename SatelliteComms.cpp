@@ -1,4 +1,5 @@
 #include "SatelliteComms.h"
+#include "Quaternion.h"
 
 SatelliteComms::SatelliteComms(
     double planetRadius,
@@ -122,20 +123,16 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
         before->state.position.z + t * (after->state.position.z - before->state.position.z)
     };
     
-    // Linear interpolation for direction vector, then normalize
-    Vector3 lerpedDirection = {
-        before->state.beamDirection.x + t * (after->state.beamDirection.x - before->state.beamDirection.x),
-        before->state.beamDirection.y + t * (after->state.beamDirection.y - before->state.beamDirection.y),
-        before->state.beamDirection.z + t * (after->state.beamDirection.z - before->state.beamDirection.z)
-    };
+    // Use quaternions for proper direction interpolation
+    // Create quaternion that rotates from reference direction (e.g., {0,0,1}) to actual directions
+    Quaternion q1 = Quaternion::fromVectors({0,0,1}, before->state.beamDirection);
+    Quaternion q2 = Quaternion::fromVectors({0,0,1}, after->state.beamDirection);
     
-    // Normalize the interpolated direction
-    double dirMag = lerpedDirection.magnitude();
-    Vector3 interpolatedDirection = {
-        lerpedDirection.x / dirMag,
-        lerpedDirection.y / dirMag,
-        lerpedDirection.z / dirMag
-    };
+    // Perform spherical linear interpolation (SLERP) between the two quaternions
+    Quaternion interpolatedQ = Quaternion::slerp(q1, q2, t);
+    
+    // Apply the interpolated rotation to the reference direction to get the interpolated beam direction
+    Vector3 interpolatedDirection = interpolatedQ.rotateVector({0,0,1});
     
     return {interpolatedPosition, interpolatedDirection};
 }

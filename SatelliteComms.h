@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "Vector3.h"
+#include "Quaternion.h"
 
 /**
  * Satellite state as specified in the requirements.
@@ -64,10 +64,8 @@ public:
     std::optional<double> nextTransmissionTime(const Vector3& pointP, double startTime) const;
     
     /**
-     * Interpolates the satellite state at a given time between known timeline points.
-     * 
-     * @param time The time at which to interpolate the satellite state
-     * @return The interpolated satellite state
+     * Public access to interpolate state for the example app.
+     * In a production environment, this would typically be private.
      */
     SatelliteState interpolateState(double time) const;
     
@@ -76,6 +74,8 @@ private:
     double planetRadius_;
     double beamConeAngleRadians_; // Stored in radians for efficient calculations
     std::vector<TimedSatelliteState> stateTimeline_;
+    
+
     
     /**
      * Checks if a point is within the satellite's beam cone.
