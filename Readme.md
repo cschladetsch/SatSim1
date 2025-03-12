@@ -1,6 +1,8 @@
 # Satellite Communications API
 
-A C++ library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
+Technical assignment for Progranda application as Team Lead in Simulation.
+
+Provides a C++17 library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
 
 ## Overview
 
@@ -22,17 +24,6 @@ The solution accounts for:
 - Binary search refinement for finding exact transmission times
 - Comprehensive unit tests with Google Test
 - Clear, well-documented API with meaningful error handling
-
-## Project Structure
-
-```
-Readme.md              # This file
-SatelliteComms.cpp     # Implementation of the satellite communications system
-SatelliteComms.h       # Header declaring the API and key data structures
-main.cpp               # Example application demonstrating API usage
-tests/
-    test.cpp           # Comprehensive unit tests
-```
 
 ## API Usage
 
