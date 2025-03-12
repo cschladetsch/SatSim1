@@ -23,9 +23,9 @@ double measureExecutionTime(Func&& func, int iterations, const std::string& test
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
     std::cout << std::setw(45) << testName << " | " << std::setw(8) << iterations
-              << " iterations | " << std::setw(10) << duration << " æs | "
+              << " iterations | " << std::setw(10) << duration << " us | "
               << std::setw(8) << std::fixed << std::setprecision(2) << (double)duration / iterations
-              << " æs/iter" << std::endl;
+              << " us/iter" << std::endl;
     
     return duration;
 }

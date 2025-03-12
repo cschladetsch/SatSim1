@@ -101,6 +101,10 @@ std::optional<double> nextTime = comms.nextTransmissionTime(pointP, startTime);
 
 // For applications with memory constraints or long lifetimes
 comms.clearCache();  // Clear the state interpolation cache
+
+// Timeline information access
+double startTime = comms.getTimelineStart();
+double endTime = comms.getTimelineEnd();
 ```
 
 ## Building and Testing
@@ -120,6 +124,14 @@ cmake --build .
 ```bash
 ctest
 # or directly:
+./SatelliteTests
+```
+
+### Run Performance Tests
+Performance tests are enabled by default. To disable them:
+```bash
+cmake -DENABLE_PERFORMANCE_TESTS=OFF ..
+cmake --build .
 ./SatelliteTests
 ```
 
@@ -158,7 +170,10 @@ The architecture supports several potential extensions:
 - `SatelliteComms.h/.cpp`: Main API implementation
 - `main.cpp`: Example application demonstrating API usage
 - `tests/`: Comprehensive test suite
-  - Basic functionality tests
-  - Edge case handling
-  - Advanced orbital configurations
-  - Performance benchmarking
+  - `test.cpp`: Basic functionality tests
+  - `additional_tests.cpp`: Edge case and specialized tests
+  - `performance_tests.cpp`: Performance benchmarks
+- `doc/`: Documentation files
+  - `NextTransmissionTime.md`: Detailed explanation of the search algorithm
+  - `Quaternion.md`: Background on quaternion-based interpolation
+  - `Rationale.md`: Design decisions and justifications
