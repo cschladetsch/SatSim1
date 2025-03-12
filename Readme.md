@@ -172,6 +172,6 @@ The architecture supports several potential extensions:
   - `additional_tests.cpp`: Edge case and specialized tests
   - `performance_tests.cpp`: Performance benchmarks
 - `doc/`: Documentation files
-  - `NextTransmissionTime.md`: Detailed explanation of the search algorithm
+  - `Performance.md`: Detailed information about the computational characteristics of the project.
   - `Quaternion.md`: Background on quaternion-based interpolation
   - `Rationale.md`: Design decisions and justifications
