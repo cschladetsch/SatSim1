@@ -38,8 +38,11 @@ if(BUILD_TESTS)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     
-    # Create test executable
-    add_executable(SatelliteTests tests/test.cpp)
+    # Create a single test executable with both test files
+    add_executable(SatelliteTests 
+        tests/test.cpp
+        tests/additional_tests.cpp
+    )
     target_link_libraries(SatelliteTests PRIVATE 
         SatelliteComms
         gtest
