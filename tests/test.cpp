@@ -37,15 +37,7 @@ protected:
             };
             
             // Beam direction points outward from planet center
-            Vector3 beamDirection = position;
-            
-            // Normalize beam direction
-            double mag = sqrt(beamDirection.x*beamDirection.x + 
-                             beamDirection.y*beamDirection.y + 
-                             beamDirection.z*beamDirection.z);
-            beamDirection.x /= mag;
-            beamDirection.y /= mag;
-            beamDirection.z /= mag;
+            Vector3 beamDirection = position.normalize();
             
             stateTimeline.push_back({time, {position, beamDirection}});
         }

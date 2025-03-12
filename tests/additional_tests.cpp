@@ -36,11 +36,7 @@ protected:
             };
             
             // Beam pointing outward from planet center
-            Vector3 beamDirection = {
-                position.x / ORBIT_RADIUS,
-                position.y / ORBIT_RADIUS,
-                0.0
-            };
+            Vector3 beamDirection = position.normalize();
             
             stateTimeline.push_back({time, {position, beamDirection}});
         }
@@ -61,11 +57,7 @@ protected:
             };
             
             // Beam pointing outward from planet center
-            Vector3 beamDirection = {
-                position.x / ORBIT_RADIUS,
-                0.0,
-                position.z / ORBIT_RADIUS
-            };
+            Vector3 beamDirection = position.normalize();
             
             stateTimeline.push_back({time, {position, beamDirection}});
         }
@@ -89,11 +81,7 @@ protected:
             };
             
             // Beam pointing outward from planet center
-            Vector3 beamDirection = {
-                position.x / ORBIT_RADIUS,
-                position.y / ORBIT_RADIUS,
-                0.0
-            };
+            Vector3 beamDirection = position.normalize();
             
             stateTimeline.push_back({time, {position, beamDirection}});
         }
@@ -129,9 +117,9 @@ protected:
     
     // Calculate the angle between two vectors in degrees
     double angleBetweenVectors(const Vector3& v1, const Vector3& v2) {
-        double dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-        double mag1 = std::sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
-        double mag2 = std::sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
+        double dot = v1.dot(v2);
+        double mag1 = v1.magnitude();
+        double mag2 = v2.magnitude();
         
         double cosAngle = dot / (mag1 * mag2);
         // Clamp to handle floating point errors
@@ -149,7 +137,7 @@ TEST_F(SatelliteCommsAdvancedTest, VaryingBeamConeAngles) {
     // Create a point we know is definitely in the standard 15-degree beam
     Vector3 inBeamPoint = {15000.0, 0.0, 0.0};  // Directly on beam axis
     
-    // Should be inside 15ø, 20ø and 30ø cones
+    // Should be inside 15o, 20o and 30o cones
     SatelliteComms comms15(PLANET_RADIUS, 15.0, stateTimeline);
     SatelliteComms comms20(PLANET_RADIUS, 20.0, stateTimeline);
     SatelliteComms comms30(PLANET_RADIUS, 30.0, stateTimeline);
@@ -158,8 +146,8 @@ TEST_F(SatelliteCommsAdvancedTest, VaryingBeamConeAngles) {
     EXPECT_TRUE(comms20.canReceiveTransmission(inBeamPoint, time));
     EXPECT_TRUE(comms30.canReceiveTransmission(inBeamPoint, time));
     
-    // Now test with a point that is outside the 15ø beam but still inside 20ø beam
-    // We'll calculate the exact position for a point at approx 17ø from beam center
+    // Now test with a point that is outside the 15o beam but still inside 20o beam
+    // We'll calculate the exact position for a point at approx 17o from beam center
     double distanceFromSat = 5000.0;
     double angle17Deg = 17.0 * M_PI / 180.0;
     Vector3 point17Deg = {
@@ -170,15 +158,11 @@ TEST_F(SatelliteCommsAdvancedTest, VaryingBeamConeAngles) {
     
     // Verify angle for debugging
     Vector3 beamDir = {1.0, 0.0, 0.0};
-    Vector3 pointDir = {
-        point17Deg.x - 10000.0,
-        point17Deg.y,
-        point17Deg.z
-    };
+    Vector3 pointDir = point17Deg - Vector3{10000.0, 0.0, 0.0};
     double actualAngle = angleBetweenVectors(beamDir, pointDir);
     std::cout << "Point angle from beam center: " << actualAngle << " degrees" << std::endl;
     
-    // Point should be outside 15ø beam but inside 20ø beam
+    // Point should be outside 15o beam but inside 20o beam
     EXPECT_FALSE(comms15.canReceiveTransmission(point17Deg, time));
     EXPECT_TRUE(comms20.canReceiveTransmission(point17Deg, time));
 }
@@ -192,11 +176,7 @@ TEST_F(SatelliteCommsAdvancedTest, ExactTimelinePoints) {
         double time = stateTimeline[i].timestamp;
         
         // Point directly in beam path for this time
-        Vector3 pointP = {
-            stateTimeline[i].state.position.x * 1.5, // 50% further out
-            stateTimeline[i].state.position.y * 1.5,
-            stateTimeline[i].state.position.z * 1.5
-        };
+        Vector3 pointP = stateTimeline[i].state.position * 1.5; // 50% further out
         
         EXPECT_TRUE(comms.canReceiveTransmission(pointP, time))
             << "Failed at timeline point " << i << " (time = " << time << ")";
@@ -234,11 +214,7 @@ TEST_F(SatelliteCommsAdvancedTest, VariableTimeSteps) {
     SatelliteState state = comms.interpolateState(timeInWideGap);
     
     // Create a point directly in the beam path at the interpolated position
-    Vector3 pointP = {
-        state.position.x + state.beamDirection.x * 5000.0,
-        state.position.y + state.beamDirection.y * 5000.0,
-        state.position.z + state.beamDirection.z * 5000.0
-    };
+    Vector3 pointP = state.position + state.beamDirection * 5000.0;
     
     EXPECT_TRUE(comms.canReceiveTransmission(pointP, timeInWideGap));
     
@@ -277,11 +253,7 @@ TEST_F(SatelliteCommsAdvancedTest, OffsetBeamDirection) {
     Vector3 satPos = stateTimeline[0].state.position;
     
     // Create a point directly along the beam path
-    Vector3 offsetPoint = {
-        satPos.x + beamDir.x * 5000.0,
-        satPos.y + beamDir.y * 5000.0,
-        satPos.z + beamDir.z * 5000.0
-    };
+    Vector3 offsetPoint = satPos + beamDir * 5000.0;
     
     EXPECT_TRUE(comms.canReceiveTransmission(offsetPoint, time));
 }
@@ -307,11 +279,7 @@ TEST_F(SatelliteCommsAdvancedTest, PlanetaryOcclusionBoundary) {
     Vector3 satPos = stateTimeline[0].state.position;
     Vector3 beamDir = stateTimeline[0].state.beamDirection;
     
-    Vector3 toPoint = {
-        definitelyVisiblePoint.x - satPos.x,
-        definitelyVisiblePoint.y - satPos.y,
-        definitelyVisiblePoint.z - satPos.z
-    };
+    Vector3 toPoint = definitelyVisiblePoint - satPos;
     
     double angle = angleBetweenVectors(beamDir, toPoint);
     
@@ -386,15 +354,15 @@ TEST_F(SatelliteCommsAdvancedTest, VeryNarrowBeam) {
     EXPECT_TRUE(standardComms.canReceiveTransmission(standardPoint, 0.0));
     
     // For narrow beam test, create a point that is definitely within 1 degree
-    // When checking a 1ø beam, we need to be more careful with numerical issues
+    // When checking a 1o beam, we need to be more careful with numerical issues
     // Let's use a point with extremely small offset to guarantee it's in beam
     Vector3 precisePoint = {15000.0, 0.1, 0.0};  // Practically on beam axis
     
     // We expect this point to be within beam
     EXPECT_TRUE(comms.canReceiveTransmission(precisePoint, 0.0));
     
-    // Create a point that is definitely outside a 1ø beam 
-    // Tangent of 1.5 degrees is ~0.026  at 5000 units distance, that's ~130 units offset
+    // Create a point that is definitely outside a 1o beam 
+    // Tangent of 1.5 degrees is ~0.026  at 5000 units distance, that's ~130 units offset
     Vector3 outsidePoint = {15000.0, 500.0, 0.0};  // Well outside 1-degree cone
     EXPECT_FALSE(comms.canReceiveTransmission(outsidePoint, 0.0));
 }
@@ -449,11 +417,6 @@ TEST_F(SatelliteCommsAdvancedTest, EdgeCaseTimes) {
     EXPECT_FALSE(comms.canReceiveTransmission(pointP, lastTime + 0.1));
     
     // Time exactly at last sample
-    Vector3 lastPoint = {
-        stateTimeline.back().state.position.x * 1.5,
-        stateTimeline.back().state.position.y * 1.5,
-        stateTimeline.back().state.position.z * 1.5
-    };
+    Vector3 lastPoint = stateTimeline.back().state.position * 1.5;
     EXPECT_TRUE(comms.canReceiveTransmission(lastPoint, lastTime));
 }
-

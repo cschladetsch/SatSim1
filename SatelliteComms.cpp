@@ -195,11 +195,7 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     double t = (time - before->timestamp) / (after->timestamp - before->timestamp);
     
     // Linear interpolation for position
-    Vector3 interpolatedPosition = {
-        before->state.position.x + t * (after->state.position.x - before->state.position.x),
-        before->state.position.y + t * (after->state.position.y - before->state.position.y),
-        before->state.position.z + t * (after->state.position.z - before->state.position.z)
-    };
+    Vector3 interpolatedPosition = before->state.position + (after->state.position - before->state.position) * t;
     
     // Use quaternions for proper beam direction interpolation.
     // Create quaternions representing the rotation from a reference direction to the actual beam directions.
@@ -262,11 +258,7 @@ bool SatelliteComms::isPlanetBlocking(const Vector3& pointP, const SatelliteStat
     }
     
     // Compute the closest point on the line from satellite to point P to the origin.
-    Vector3 closestPoint = {
-        state.position.x - projection * dirToPoint.x,
-        state.position.y - projection * dirToPoint.y,
-        state.position.z - projection * dirToPoint.z
-    };
+    Vector3 closestPoint = state.position - dirToPoint * projection;
     
     // The planet blocks transmission if the closest approach is less than the planet's radius.
     return closestPoint.magnitude() < planetRadius_;
@@ -336,36 +328,20 @@ double SatelliteComms::getAdaptiveStepSize(double currentTime, const Vector3& po
         Vector3 positionAfter = after->state.position;
         
         // Calculate unit vectors from origin to positions
-        Vector3 dirBefore = positionBefore;
-        Vector3 dirAfter = positionAfter;
-        double magBefore = dirBefore.magnitude();
-        double magAfter = dirAfter.magnitude();
+        Vector3 dirBefore = positionBefore.normalize();
+        Vector3 dirAfter = positionAfter.normalize();
         
-        if (magBefore > 0 && magAfter > 0) {
-            dirBefore = {
-                dirBefore.x / magBefore,
-                dirBefore.y / magBefore,
-                dirBefore.z / magBefore
-            };
-            
-            dirAfter = {
-                dirAfter.x / magAfter,
-                dirAfter.y / magAfter,
-                dirAfter.z / magAfter
-            };
-            
-            // Calculate angle between directions
-            double cosAngle = dirBefore.dot(dirAfter);
-            cosAngle = std::min(std::max(cosAngle, -1.0), 1.0); // Clamp to [-1, 1]
-            double angle = std::acos(cosAngle);
-            
-            // Calculate time between samples
-            double timeDelta = after->timestamp - before->timestamp;
-            
-            // Angular velocity in radians per second
-            if (timeDelta > 0) {
-                angularVelocity = angle / timeDelta;
-            }
+        // Calculate angle between directions
+        double cosAngle = dirBefore.dot(dirAfter);
+        cosAngle = std::min(std::max(cosAngle, -1.0), 1.0); // Clamp to [-1, 1]
+        double angle = std::acos(cosAngle);
+        
+        // Calculate time between samples
+        double timeDelta = after->timestamp - before->timestamp;
+        
+        // Angular velocity in radians per second
+        if (timeDelta > 0) {
+            angularVelocity = angle / timeDelta;
         }
     }
     

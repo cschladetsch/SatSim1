@@ -38,12 +38,7 @@ int main() {
         Vector3 beamDirection = position;
         
         // Normalize the beam direction
-        double mag = beamDirection.magnitude();
-        beamDirection = {
-            beamDirection.x / mag,
-            beamDirection.y / mag,
-            beamDirection.z / mag
-        };
+        beamDirection = beamDirection.normalize();
         
         // Add the state to our timeline
         stateTimeline.push_back({time, {position, beamDirection}});
