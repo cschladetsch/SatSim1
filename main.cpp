@@ -1,88 +1,123 @@
 #include <iostream>
 #include <vector>
 #include <iomanip>
+#include <cmath>
 #include "SatelliteComms.h"
 
+/**
+ * Example application demonstrating the use of the SatelliteComms API.
+ * This creates a satellite in circular orbit with a beam pointing outward,
+ * then tests reception at various points in space.
+ */
 int main() {
-    // Create a sample orbital path for the satellite
+    // Configuration parameters
     std::vector<TimedSatelliteState> stateTimeline;
     
-    // Simulate a satellite in circular orbit, with beam pointing outward
-    double orbitRadius = 10000.0;  // Units (e.g., km)
-    double planetRadius = 6371.0;  // Earth radius in km
-    double beamConeAngle = 15.0;   // 15 degrees cone angle
+    // Define orbital and beam parameters
+    constexpr double orbitRadius = 10000.0;  // Units (e.g., km)
+    constexpr double planetRadius = 6371.0;  // Earth radius in km
+    constexpr double beamConeAngle = 15.0;   // 15 degrees cone angle
     
     // Create timeline with 10 samples over one full orbit
-    for (int i = 0; i < 10; ++i) {
-        double time = i * 1000.0;            // Each sample 1000 seconds apart
-        double angle = (2 * M_PI * i) / 10;  // Position in circular orbit
+    constexpr int numSamples = 10;
+    constexpr double timeStep = 1000.0;  // Each sample 1000 seconds apart
+    
+    for (int i = 0; i < numSamples; ++i) {
+        double time = i * timeStep;
+        double angle = (2 * M_PI * i) / numSamples;
         
-        // Calculate position
+        // Calculate position in circular orbit (XY plane)
         Vector3 position = {
             orbitRadius * std::cos(angle),
             orbitRadius * std::sin(angle),
-            0.0  // Orbit in XY plane for simplicity
+            0.0
         };
         
-        // Beam direction pointing outward from planet
-        Vector3 beamDirection = {
-            position.x,
-            position.y,
-            position.z
+        // Beam direction pointing radially outward from planet center
+        Vector3 beamDirection = position;
+        
+        // Normalize the beam direction
+        double mag = beamDirection.magnitude();
+        beamDirection = {
+            beamDirection.x / mag,
+            beamDirection.y / mag,
+            beamDirection.z / mag
         };
         
-        // Normalize beam direction
-        double mag = std::sqrt(beamDirection.x*beamDirection.x + 
-                           beamDirection.y*beamDirection.y + 
-                           beamDirection.z*beamDirection.z);
-        beamDirection.x /= mag;
-        beamDirection.y /= mag;
-        beamDirection.z /= mag;
-        
+        // Add the state to our timeline
         stateTimeline.push_back({time, {position, beamDirection}});
     }
     
     // Initialize the satellite communications system
     SatelliteComms comms(planetRadius, beamConeAngle, stateTimeline);
     
-    // Example 1: Point directly in front of the satellite at t=0
-    Vector3 pointP1 = {15000.0, 0.0, 0.0};  // Further out along X-axis
-    double time1 = 0.0;
+    // Set output formatting for clarity
+    std::cout << std::fixed << std::setprecision(2);
     
-    bool canReceive1 = comms.canReceiveTransmission(pointP1, time1);
-    std::cout << "Example 1 - Point at (" << pointP1.x << ", " << pointP1.y << ", " << pointP1.z << ")" << std::endl;
-    std::cout << "Can receive transmission at t=" << time1 << "? " << (canReceive1 ? "Yes" : "No") << std::endl;
-    
-    // Example 2: Point outside beam cone at t=0
-    Vector3 pointP2 = {15000.0, 5000.0, 0.0};  // Off to the side, outside 15 degree cone
-    double time2 = 0.0;
-    
-    bool canReceive2 = comms.canReceiveTransmission(pointP2, time2);
-    std::cout << "\nExample 2 - Point at (" << pointP2.x << ", " << pointP2.y << ", " << pointP2.z << ")" << std::endl;
-    std::cout << "Can receive transmission at t=" << time2 << "? " << (canReceive2 ? "Yes" : "No") << std::endl;
-    
-    // Find next available time for transmission
-    auto nextTime2 = comms.nextTransmissionTime(pointP2, time2);
-    if (nextTime2) {
-        std::cout << "Next available transmission time: " << *nextTime2 << std::endl;
-    } else {
-        std::cout << "No transmission time available within timeline" << std::endl;
+    // Test Case 1: Point directly in satellite's beam path
+    {
+        Vector3 pointP = {15000.0, 0.0, 0.0};  // Further out along X-axis at t=0
+        double time = 0.0;
+        
+        bool canReceive = comms.canReceiveTransmission(pointP, time);
+        
+        std::cout << "Case 1: Point in beam path" << std::endl;
+        std::cout << "  - Location: (" << pointP.x << ", " << pointP.y << ", " << pointP.z << ")" << std::endl;
+        std::cout << "  - Time: " << time << std::endl;
+        std::cout << "  - Can receive? " << (canReceive ? "Yes" : "No") << std::endl;
     }
     
-    // Example 3: Point behind planet at t=0
-    Vector3 pointP3 = {-8000.0, 0.0, 0.0};  // Behind planet relative to satellite
-    double time3 = 0.0;
+    // Test Case 2: Point outside beam cone
+    {
+        Vector3 pointP = {15000.0, 5000.0, 0.0};  // Off to the side, outside 15 degree cone
+        double time = 0.0;
+        
+        bool canReceive = comms.canReceiveTransmission(pointP, time);
+        
+        std::cout << "\nCase 2: Point outside beam cone" << std::endl;
+        std::cout << "  - Location: (" << pointP.x << ", " << pointP.y << ", " << pointP.z << ")" << std::endl;
+        std::cout << "  - Time: " << time << std::endl;
+        std::cout << "  - Can receive? " << (canReceive ? "Yes" : "No") << std::endl;
+        
+        // Find next available transmission time
+        auto nextTime = comms.nextTransmissionTime(pointP, time);
+        if (nextTime) {
+            std::cout << "  - Next available time: " << *nextTime << std::endl;
+            
+            // Verify transmission is possible at the returned time
+            bool verifyReceive = comms.canReceiveTransmission(pointP, *nextTime);
+            std::cout << "  - Verified reception at next time: " << (verifyReceive ? "Yes" : "No") << std::endl;
+        } else {
+            std::cout << "  - No transmission possible within timeline" << std::endl;
+        }
+    }
     
-    bool canReceive3 = comms.canReceiveTransmission(pointP3, time3);
-    std::cout << "\nExample 3 - Point at (" << pointP3.x << ", " << pointP3.y << ", " << pointP3.z << ")" << std::endl;
-    std::cout << "Can receive transmission at t=" << time3 << "? " << (canReceive3 ? "Yes" : "No") << std::endl;
-    
-    // Find next available time for transmission
-    auto nextTime3 = comms.nextTransmissionTime(pointP3, time3);
-    if (nextTime3) {
-        std::cout << "Next available transmission time: " << *nextTime3 << std::endl;
-    } else {
-        std::cout << "No transmission time available within timeline" << std::endl;
+    // Test Case 3: Point behind planet (occlusion test)
+    {
+        Vector3 pointP = {-8000.0, 0.0, 0.0};  // Behind planet relative to satellite at t=0
+        double time = 0.0;
+        
+        bool canReceive = comms.canReceiveTransmission(pointP, time);
+        
+        std::cout << "\nCase 3: Point behind planet" << std::endl;
+        std::cout << "  - Location: (" << pointP.x << ", " << pointP.y << ", " << pointP.z << ")" << std::endl;
+        std::cout << "  - Time: " << time << std::endl;
+        std::cout << "  - Can receive? " << (canReceive ? "Yes" : "No") << std::endl;
+        
+        // Find next available transmission time
+        auto nextTime = comms.nextTransmissionTime(pointP, time);
+        if (nextTime) {
+            std::cout << "  - Next available time: " << *nextTime << std::endl;
+            
+            // Get satellite position at this time
+            SatelliteState state = comms.interpolateState(*nextTime);
+            std::cout << "  - Satellite position at next time: ("
+                      << state.position.x << ", " 
+                      << state.position.y << ", "
+                      << state.position.z << ")" << std::endl;
+        } else {
+            std::cout << "  - No transmission possible within timeline" << std::endl;
+        }
     }
     
     return 0;

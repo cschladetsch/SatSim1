@@ -1,57 +1,87 @@
-# Satellite Communications API - Design Rationale and Details
+# Satellite Communications API
+
+A C++ library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
 
 ## Overview
 
-The API was designed to determine whether a point in 3D space can receive a transmission from a satellite at a given time, and if not, when the next available transmission time would be.
+This library provides tools to determine:
+1. Whether a point in 3D space can receive a transmission from a satellite at a given time
+2. When the next time is that a point will be able to receive a transmission
 
-### Core Requirements
+The solution accounts for:
+- The satellite's position and beam direction changing over time
+- Interpolation between known state samples
+- Whether the point is within the satellite's beam cone
+- Whether the planet blocks the transmission path
 
-1. Determine if a point can receive a transmission based on:
-   - Whether the point is within the satellite's beam cone
-   - Whether the planet is blocking the transmission
-2. Find the next time at which transmission is possible if currently not possible
+## Features
 
-## Key Design Decisions
+- Linear interpolation of satellite position and beam direction over time
+- Efficient cone angle calculation using dot products
+- Planet occlusion detection using geometric line-sphere intersection
+- Binary search refinement for finding exact transmission times
+- Comprehensive unit tests with Google Test
+- Clear, well-documented API with meaningful error handling
 
-### 1. Vector3 Class Extensions
+## Project Structure
 
-I extended the provided `Vector3` struct with common vector operations:
-- Subtraction (operator-)
-- Magnitude calculation
-- Normalization
-- Dot product
+```
+Readme.md              # This file
+SatelliteComms.cpp     # Implementation of the satellite communications system
+SatelliteComms.h       # Header declaring the API and key data structures
+main.cpp               # Example application demonstrating API usage
+tests/
+    test.cpp           # Comprehensive unit tests
+```
 
-These operations are foundational for the geometric calculations needed throughout the solution.
+## API Usage
 
-### 2. State Interpolation
+```cpp
+// Initialize with planet radius, beam cone angle, and state timeline
+SatelliteComms comms(planetRadius, beamConeAngle, stateTimeline);
 
-A key challenge was accurately representing satellite state between discrete timeline samples. I implemented linear interpolation for position and direction vectors:
+// Check if a point can receive transmission at a given time
+bool canReceive = comms.canReceiveTransmission(pointP, time);
 
-- Position: Standard linear interpolation between two points
-- Direction: Normalized linear interpolation (a simplified approximation of SLERP)
+// Find next time transmission is possible (if any)
+std::optional<double> nextTime = comms.nextTransmissionTime(pointP, startTime);
+```
 
-This approach ensures smooth transitions between known states while maintaining unit-length beam direction vectors.
+## Building and Testing
 
-### 3. Beam Cone Determination
+### Prerequisites
+- C++17 compatible compiler
+- CMake 3.10 or higher
 
-To check if a point is within the beam cone, I:
-1. Calculate the vector from satellite to point
-2. Normalize both this vector and the beam direction
-3. Compute the dot product, which gives the cosine of the angle between them
-4. Compare with cosine of the beam cone angle
+### Build Commands
+```bash
+mkdir build && cd build
+cmake ..
+cmake --build .
+```
 
-This is more efficient than explicitly calculating angles using trigonometric functions.
+### Run Tests
+```bash
+ctest
+# or directly:
+./SatelliteTests
+```
 
-### 4. Planet Occlusion Detection
+### Run Example Application
+```bash
+./SatelliteApp
+```
 
-To determine if the planet blocks transmission, I calculate:
-1. The closest point on the satellite-to-point line to the planet center
-2. Whether this closest point is between the satellite and the target point
-3. Whether the distance from this point to planet center is less than the planet radius
+## Design Considerations
 
-This geometric approach handles all cases where the planet might block transmission.
+### Key Assumptions
+- Planet is centered at origin (0,0,0)
+- Beam cone has its apex at the satellite position and extends along the beam direction
+- Linear interpolation is adequate for positions between samples
+- Timeline is chronologically ordered and contains sufficient samples
 
-### 5. Next Transmission Time Algorithm
+### Performance Optimization
+- Dot product for angle calculation rather than explicit trigonometry
+- Binary search refinement for efficient next transmission time calculation
+- Pre-computing beam cone angle in radians
 
-For finding the next transmission time, I implemented:
-1. An initial linear search with fixed t

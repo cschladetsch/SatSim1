@@ -1,6 +1,5 @@
 #include "SatelliteComms.h"
 
-// Constructor
 SatelliteComms::SatelliteComms(
     double planetRadius,
     double beamConeAngleDegrees,
@@ -10,16 +9,21 @@ SatelliteComms::SatelliteComms(
     beamConeAngleRadians_(beamConeAngleDegrees * M_PI / 180.0),
     stateTimeline_(stateTimeline)
 {
-    // Validate that timeline is chronologically ordered
+    // Validate the timeline is chronologically ordered
     for (size_t i = 1; i < stateTimeline_.size(); ++i) {
         if (stateTimeline_[i].timestamp <= stateTimeline_[i-1].timestamp) {
             throw std::invalid_argument("Satellite state timeline must be chronologically ordered");
         }
     }
+    
+    // Validate we have at least two points for interpolation
+    if (stateTimeline_.size() < 2) {
+        throw std::invalid_argument("Satellite state timeline must contain at least two points");
+    }
 }
 
 bool SatelliteComms::canReceiveTransmission(const Vector3& pointP, double time) const {
-    // Check if time is within our timeline
+    // Check if time is within our timeline range
     if (time < stateTimeline_.front().timestamp || 
         time > stateTimeline_.back().timestamp) {
         return false;
@@ -28,59 +32,57 @@ bool SatelliteComms::canReceiveTransmission(const Vector3& pointP, double time) 
     // Get interpolated satellite state at the given time
     SatelliteState state = interpolateState(time);
     
-    // Check both conditions:
+    // Both conditions must be met for transmission to be received:
     // 1. Point must be within beam cone
     // 2. Planet must not block transmission
     return isInBeamCone(pointP, state) && !isPlanetBlocking(pointP, state);
 }
 
 std::optional<double> SatelliteComms::nextTransmissionTime(const Vector3& pointP, double startTime) const {
+    // If we're already beyond our timeline, we can't predict future states
+    if (startTime >= stateTimeline_.back().timestamp) {
+        return std::nullopt;
+    }
+    
     // If transmission can be received now, return current time
     if (canReceiveTransmission(pointP, startTime)) {
         return startTime;
     }
     
-    // If start time is beyond our timeline, we cannot predict
-    if (startTime >= stateTimeline_.back().timestamp) {
-        return std::nullopt;
-    }
-    
-    // Binary search approach for efficiency
-    // This is simplified and would need to be replaced with a more sophisticated algorithm
-    // for a production implementation, as satellite visibility could change multiple times
-    // between two consecutive samples
-    
-    // Start with a linear search for simplicity
-    double timeStep = 1.0; // 1 second step, can be adjusted for precision
+    // Define search parameters
+    const double timeStep = 1.0;       // Initial time step (1 second)
+    const double precision = 1e-6;     // Precision threshold for binary search
     double currentTime = startTime + timeStep;
     
+    // Linear search to find approximate next transmission time
     while (currentTime <= stateTimeline_.back().timestamp) {
         if (canReceiveTransmission(pointP, currentTime)) {
-            // Refine the time by binary search between previous and current
+            // Found approximate time, now refine with binary search
             double lowerBound = currentTime - timeStep;
             double upperBound = currentTime;
             
-            while (upperBound - lowerBound > 1e-6) { // Precision threshold
+            // Binary search to find the exact transition point
+            while (upperBound - lowerBound > precision) {
                 double midTime = (lowerBound + upperBound) / 2.0;
                 if (canReceiveTransmission(pointP, midTime)) {
-                    upperBound = midTime;
+                    upperBound = midTime;  // Transmission possible at midTime
                 } else {
-                    lowerBound = midTime;
+                    lowerBound = midTime;  // Transmission not possible at midTime
                 }
             }
             
-            return upperBound;
+            return upperBound;  // Return earliest time transmission is possible
         }
         
         currentTime += timeStep;
     }
     
-    // If we get here, no transmission time was found
+    // No transmission time found within timeline
     return std::nullopt;
 }
 
 SatelliteState SatelliteComms::interpolateState(double time) const {
-    // Find the two timeline points that surround the given time
+    // Find the timeline entry that is just after the requested time
     auto it = std::lower_bound(
         stateTimeline_.begin(), 
         stateTimeline_.end(), 
@@ -90,23 +92,27 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
         }
     );
     
-    // If time is exactly on a timeline point
-    if (it != stateTimeline_.end() && it->timestamp == time) {
-        return it->state;
-    }
-    
-    // If time is before the first point or after the last point
+    // Handle edge cases
     if (it == stateTimeline_.begin()) {
-        return stateTimeline_.front().state;
+        return stateTimeline_.front().state;  // Time is before or at first sample
     }
     if (it == stateTimeline_.end()) {
-        return stateTimeline_.back().state;
+        return stateTimeline_.back().state;   // Time is after last sample
     }
     
-    // Otherwise, interpolate between the two surrounding points
+    // Get the timeline entries before and after the requested time
     auto after = it;
     auto before = it - 1;
     
+    // If time exactly matches a sample, return that sample's state
+    if (time == before->timestamp) {
+        return before->state;
+    }
+    if (time == after->timestamp) {
+        return after->state;
+    }
+    
+    // Calculate interpolation factor (0.0 to 1.0)
     double t = (time - before->timestamp) / (after->timestamp - before->timestamp);
     
     // Linear interpolation for position
@@ -116,17 +122,19 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
         before->state.position.z + t * (after->state.position.z - before->state.position.z)
     };
     
-    // SLERP (Spherical Linear Interpolation) would be ideal for direction vectors
-    // but we'll use a simpler approach for brevity: normalize(lerp(v1, v2, t))
+    // Linear interpolation for direction vector, then normalize
     Vector3 lerpedDirection = {
         before->state.beamDirection.x + t * (after->state.beamDirection.x - before->state.beamDirection.x),
         before->state.beamDirection.y + t * (after->state.beamDirection.y - before->state.beamDirection.y),
         before->state.beamDirection.z + t * (after->state.beamDirection.z - before->state.beamDirection.z)
     };
+    
+    // Normalize the interpolated direction
+    double dirMag = lerpedDirection.magnitude();
     Vector3 interpolatedDirection = {
-        lerpedDirection.x / lerpedDirection.magnitude(),
-        lerpedDirection.y / lerpedDirection.magnitude(),
-        lerpedDirection.z / lerpedDirection.magnitude()
+        lerpedDirection.x / dirMag,
+        lerpedDirection.y / dirMag,
+        lerpedDirection.z / dirMag
     };
     
     return {interpolatedPosition, interpolatedDirection};
@@ -134,45 +142,47 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
 
 bool SatelliteComms::isInBeamCone(const Vector3& pointP, const SatelliteState& state) const {
     // Vector from satellite to point P
-    Vector3 toPointVector = {
-        pointP.x - state.position.x,
-        pointP.y - state.position.y,
-        pointP.z - state.position.z
-    };
+    Vector3 toPointVector = pointP - state.position;
     
-    // Normalize both vectors
+    // Skip zero-distance check (would be a degenerate case)
+    
+    // Normalize vectors
     Vector3 normalizedBeamDir = state.beamDirection.normalize();
     Vector3 normalizedToPoint = toPointVector.normalize();
     
-    // Calculate dot product (cosine of angle between vectors)
+    // Dot product gives cosine of angle between vectors
     double cosAngle = normalizedBeamDir.dot(normalizedToPoint);
     
-    // If cosine of angle is greater than cosine of cone angle, point is inside cone
-    return cosAngle >= cos(beamConeAngleRadians_);
+    // Inside cone if cosine of angle is greater than or equal to cosine of cone angle
+    // (larger cosine means smaller angle)
+    return cosAngle >= std::cos(beamConeAngleRadians_);
 }
 
 bool SatelliteComms::isPlanetBlocking(const Vector3& pointP, const SatelliteState& state) const {
     // Vector from satellite to point P
-    Vector3 toPointVector = {
-        pointP.x - state.position.x,
-        pointP.y - state.position.y,
-        pointP.z - state.position.z
-    };
+    Vector3 toPointVector = pointP - state.position;
     
     // Distance from satellite to point P
     double distToPoint = toPointVector.magnitude();
     
-    // Calculate closest distance from line (satellite to P) to planet center (origin)
-    // We're assuming planet is at (0,0,0) as it wasn't specified otherwise
+    // Direction from satellite to point (normalized)
+    Vector3 dirToPoint = toPointVector.normalize();
     
-    // Vector from origin to satellite
+    // Vector from origin (planet center) to satellite
     Vector3 originToSat = state.position;
     
     // Project originToSat onto the normalized direction from satellite to point
-    Vector3 dirToPoint = toPointVector.normalize();
+    // This gives the distance along the line where we find the closest approach to origin
     double projection = originToSat.dot(dirToPoint);
     
-    // Calculate closest point on the line to origin
+    // If projection is negative, closest point is "behind" the satellite (away from point P)
+    // If projection > distance to point, closest point is "beyond" point P
+    // In both cases, there's no intersection with planet between satellite and point P
+    if (projection < 0 || projection > distToPoint) {
+        return false;
+    }
+    
+    // Calculate the closest point on the line to origin
     Vector3 closestPoint = {
         state.position.x - projection * dirToPoint.x,
         state.position.y - projection * dirToPoint.y,
@@ -182,15 +192,6 @@ bool SatelliteComms::isPlanetBlocking(const Vector3& pointP, const SatelliteStat
     // Distance from closest point to origin
     double closestDist = closestPoint.magnitude();
     
-    // If this distance is less than planet radius, the planet is blocking
-    if (closestDist < planetRadius_) {
-        // Additional check: is the closest point between satellite and point P?
-        // If projection is negative, closest point is before satellite
-        // If projection > distance to point, closest point is beyond point P
-        if (projection > 0 && projection < distToPoint) {
-            return true;
-        }
-    }
-    
-    return false;
+    // Planet blocks if the closest approach is less than the planet radius
+    return closestDist < planetRadius_;
 }
