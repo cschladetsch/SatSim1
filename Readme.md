@@ -4,6 +4,8 @@ A C++17 library for determining satellite-to-point transmission visibility, acco
 
 This is production-level code designed for practical use in real-world satellite communication systems.
 
+[SampleBenchmark](/resources/benchmark.txt)
+
 ## System Architecture Overview
 
 The Satellite Communications System determines when a point in 3D space can receive transmissions from a satellite in orbit. The architecture follows object-oriented design principles with a focus on performance, accuracy, and maintainability.
@@ -156,7 +158,6 @@ cmake --build .
 ./Benchmark
 ```
 
-[SampleBenchmark](/resources/benchmark.txt)
 
 ### Benchmark Scenarios
 
