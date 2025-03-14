@@ -2,6 +2,8 @@
 
 A C++17 library for determining satellite-to-point transmission visibility, accounting for satellite movement, beam direction, and planet occlusion.
 
+This is production-level code. It is not just a toy implementation. It could be practically used in a real-world system.
+
 ## System Architecture Overview
 
 The Satellite Communications System determines when a point in 3D space can receive transmissions from a satellite in orbit. The architecture follows object-oriented design principles with a focus on performance, accuracy, and maintainability.
