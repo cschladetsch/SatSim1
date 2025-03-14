@@ -20,7 +20,7 @@ The foundation of spatial calculations representing a point or direction in 3D s
 - Basic vector operations (subtraction, addition, scaling)
 - Magnitude calculation with SIMD optimization
 - Normalization and dot product computation
-- Distance and cross product operations
+- Distance and cross-product operations
 
 #### Quaternion Class
 Provides robust rotational interpolation for accurately representing changes in beam direction.
@@ -153,7 +153,7 @@ The project includes a comprehensive benchmarking system to evaluate caching per
 mkdir build && cd build
 cmake ..
 cmake --build .
-./SimpleBenchmark
+./Benchmark
 ```
 
 ### Benchmark Scenarios
@@ -167,16 +167,16 @@ The benchmark includes six test scenarios designed to evaluate different aspects
    Tests a complex orbital scenario with highly repeated queries for maximum cache benefit.
 
 3. **Large Timeline - High Cache Benefit (99% hits)**  
-   Uses a detailed timeline (2,000 samples) with 20,000 queries that are highly repeated.
+   Uses a detailed timeline (2,000 samples) with 20,000 highly repeated queries.
 
 4. **Very Dense Timeline - Sequential Scan (0% hits)**  
-   Tests a high-resolution timeline (5,000 samples) with sequential access pattern.
+   Tests a high-resolution timeline (5,000 samples) with a sequential access pattern.
 
 5. **Real-world Satellite - Clustered Access (20% hits)**  
    Simulates a geostationary satellite with time queries clustered around specific events.
 
 6. **Extreme Case - Random Access (0% hits)**  
-   Stress tests the system with an extremely long timeline (10,000 samples) and random access.
+   Stress tests the system with a long timeline (10,000 samples) and random access.
 
 ### Performance Metrics
 
@@ -186,7 +186,7 @@ Each scenario measures three key performance metrics:
    Direct measurement of state interpolation with and without caching.
 
 2. **Transmission Check Performance**  
-   Evaluates impact of caching on determining if a point can receive a transmission.
+   Evaluate the impact of caching on determining if a point can receive a transmission.
 
 3. **Next Transmission Time Performance**  
    Measures efficiency when finding the next time a point will receive a transmission.
@@ -205,7 +205,7 @@ Optimal cache performance is achieved with high repeat rates of time queries, wh
 ## Design Considerations
 
 ### Key Assumptions
-- Planet is centered at origin (0,0,0)
+- Planet is centred at origin (0,0,0)
 - Beam cone has its apex at the satellite position
 - Timeline is chronologically ordered
 - Time is measured from a universal datum
@@ -219,7 +219,7 @@ Optimal cache performance is achieved with high repeat rates of time queries, wh
 ## Extension Possibilities
 
 The architecture supports several potential extensions:
-- Multiple satellites tracking
+- Multiple satellite tracking
 - Moving reception points
 - Variable beam parameters
 - Extended visibility window forecasting
@@ -254,4 +254,4 @@ Sample benchmark results on a typical system:
 | Real-world Satellite - Clustered Access  | 0.66x         | 5.06x        | 4.08x       | 19.8%      |
 | Extreme Case - Random Access             | 0.72x         | 5.22x        | 4.29x       | 0.0%       |
 
-The benchmark demonstrates that the caching system provides substantial performance improvements for operations that involve multiple interpolations (transmission checks and next time calculations) across all access patterns, while direct interpolation performance varies based on access pattern.
+The benchmark demonstrates that the caching system provides substantial performance improvements for operations that involve multiple interpolations (transmission checks and next-time calculations) across all access patterns, while direct interpolation performance varies based on the access pattern.
