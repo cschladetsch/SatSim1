@@ -409,6 +409,7 @@ TEST_F(SatelliteCommsPerformanceTest, Vector3Operations) {
 
 // Comparison between non-cached and cached implementations
 TEST_F(SatelliteCommsPerformanceTest, CachingEfficiency) {
+    static constexpr int ITERATIONS = 10000;
     // Set up a more complex orbit with more points for a better test
     create3DOrbitTimeline();
     SatelliteComms comms(PLANET_RADIUS, BEAM_ANGLE, stateTimeline);
@@ -440,7 +441,7 @@ TEST_F(SatelliteCommsPerformanceTest, CachingEfficiency) {
         return result;
     };
 
-    measureExecutionTime(testFirstPass, 1, "First pass (no cache)");
+    measureExecutionTime(testFirstPass, ITERATIONS, "First pass (no cache)");
 
     // 2. Second pass - should benefit from caching
     auto testSecondPass = [&comms, &queryTimes]() -> double {
@@ -452,7 +453,7 @@ TEST_F(SatelliteCommsPerformanceTest, CachingEfficiency) {
         return result;
     };
 
-    measureExecutionTime(testSecondPass, 1, "Second pass (with cache)");
+    measureExecutionTime(testSecondPass, ITERATIONS, "Second pass (with cache)");
 
     // 3. Repeated access - maximum cache benefit
     auto testRepeatedAccess = [&comms, &queryTimes]() -> double {
@@ -467,7 +468,7 @@ TEST_F(SatelliteCommsPerformanceTest, CachingEfficiency) {
         return result;
     };
 
-    measureExecutionTime(testRepeatedAccess, 1, "Repeated access (max cache benefit)");
+    measureExecutionTime(testRepeatedAccess, ITERATIONS, "Repeated access (max cache benefit)");
 
     // Clear cache and measure performance difference
     comms.clearCache();
@@ -482,7 +483,7 @@ TEST_F(SatelliteCommsPerformanceTest, CachingEfficiency) {
         return result;
     };
 
-    measureExecutionTime(testAfterClearCache, 1, "After clearing cache");
+    measureExecutionTime(testAfterClearCache, ITERATIONS, "After clearing cache");
 }
 
 #endif // ENABLE_PERFORMANCE_TESTS

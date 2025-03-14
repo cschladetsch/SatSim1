@@ -11,6 +11,11 @@
 
 #include "Quaternion.h"
 
+inline bool doubleEquiv(double x, double y) {
+    static constexpr double EPSILON = 1e-5;
+    return (x - y) < EPSILON;
+}
+
 /**
  * Satellite state as specified in the requirements.
  */
@@ -20,12 +25,12 @@ struct SatelliteState {
     
     // Added equality operator for state caching
     bool operator==(const SatelliteState& other) const {
-        return position.x == other.position.x &&
-               position.y == other.position.y &&
-               position.z == other.position.z &&
-               beamDirection.x == other.beamDirection.x &&
-               beamDirection.y == other.beamDirection.y &&
-               beamDirection.z == other.beamDirection.z;
+        return doubleEquiv(position.x, other.position.x) &&
+               doubleEquiv(position.y, other.position.y) &&
+               doubleEquiv(position.z, other.position.z) &&
+               doubleEquiv(beamDirection.x, other.beamDirection.x) &&
+               doubleEquiv(beamDirection.y, other.beamDirection.y) &&
+               doubleEquiv(beamDirection.z, other.beamDirection.z);
     }
 };
 
