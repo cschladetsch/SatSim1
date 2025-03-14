@@ -156,6 +156,8 @@ cmake --build .
 ./Benchmark
 ```
 
+![SampleBenchmark](/resources/benchmark.txt)
+
 ### Benchmark Scenarios
 
 The benchmark includes six test scenarios designed to evaluate different aspects of caching performance:
