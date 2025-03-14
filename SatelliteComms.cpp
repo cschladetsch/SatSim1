@@ -23,6 +23,11 @@ SatelliteComms::SatelliteComms(
         throw std::invalid_argument("Satellite state timeline must contain at least two points");
     }
     
+    // Initialize the recent cache entries
+    for (auto& entry : recentCache_) {
+        entry.first = std::numeric_limits<CacheKey>::min(); // Invalid key
+    }
+    
     // Reserve space for the cache to avoid rehashing
     stateCache_.reserve(MAX_CACHE_SIZE);
 }
@@ -116,22 +121,26 @@ std::optional<double> SatelliteComms::nextTransmissionTime(const Vector3& pointP
 }
 
 SatelliteState SatelliteComms::interpolateState(double time) const {
-    // Check if the state is in the cache first
-    auto cacheIt = stateCache_.find(time);
-    if (cacheIt != stateCache_.end()) {
-        // Check if the cache entry is still valid (not expired)
-        auto now = std::chrono::steady_clock::now();
-        if (now - cacheIt->second.timestamp < CACHE_TTL) {
-            return cacheIt->second.state;
+    // Convert to a discrete key for cache lookup
+    CacheKey key = timeToKey(time);
+    
+    // First check the small, fast recent-access cache (no hashing required)
+    for (size_t i = 0; i < MAX_RECENT_CACHE_SIZE; ++i) {
+        if (recentCache_[i].first == key) {
+            return recentCache_[i].second;
         }
-        // If expired, remove it from the cache
-        stateCache_.erase(cacheIt);
     }
     
-    // Clean expired cache entries occasionally to prevent memory growth
-    if (stateCache_.size() > MAX_CACHE_SIZE / 2) {
-        cleanExpiredCacheEntries();
+    // Then check the main cache
+    auto cacheIt = stateCache_.find(key);
+    if (cacheIt != stateCache_.end()) {
+        // Add to recent cache for faster future access
+        recentCache_[recentCacheIndex_] = {key, cacheIt->second};
+        recentCacheIndex_ = (recentCacheIndex_ + 1) % MAX_RECENT_CACHE_SIZE;
+        return cacheIt->second;
     }
+    
+    // Cache miss - perform interpolation
     
     // Find the first timeline entry with a timestamp >= time.
     auto it = std::lower_bound(
@@ -146,18 +155,12 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     // Handle edge cases: before the first sample or after the last sample.
     if (it == stateTimeline_.begin()) {
         SatelliteState result = stateTimeline_.front().state;
-        
-        // Add to cache with cache management
         addToCache(time, result);
-        
         return result;
     }
     if (it == stateTimeline_.end()) {
         SatelliteState result = stateTimeline_.back().state;
-        
-        // Add to cache with cache management
         addToCache(time, result);
-        
         return result;
     }
     
@@ -166,20 +169,14 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     auto before = it - 1;
     
     // If time exactly matches a sample, return that state.
-    if (time == before->timestamp) {
+    if (doubleEquiv(time, before->timestamp)) {
         SatelliteState result = before->state;
-        
-        // Add to cache with cache management
         addToCache(time, result);
-        
         return result;
     }
-    if (time == after->timestamp) {
+    if (doubleEquiv(time, after->timestamp)) {
         SatelliteState result = after->state;
-        
-        // Add to cache with cache management
         addToCache(time, result);
-        
         return result;
     }
     
@@ -204,47 +201,42 @@ SatelliteState SatelliteComms::interpolateState(double time) const {
     // Create the interpolated state
     SatelliteState result = {interpolatedPosition, interpolatedDirection};
     
-    // Add to cache with cache management
+    // Add to cache
     addToCache(time, result);
     
     return result;
 }
 
 void SatelliteComms::addToCache(double time, const SatelliteState& state) const {
-    auto now = std::chrono::steady_clock::now();
+    CacheKey key = timeToKey(time);
     
-    // If the cache is full, we need to make room for the new entry
-    if (stateCache_.size() >= MAX_CACHE_SIZE) {
-        // First attempt to find and remove an expired entry
-        bool removedExpired = false;
+    // Always update the recent cache
+    recentCache_[recentCacheIndex_] = {key, state};
+    recentCacheIndex_ = (recentCacheIndex_ + 1) % MAX_RECENT_CACHE_SIZE;
+    
+    // If the main cache is full, we'll evict the oldest entries
+    if (stateCache_.size() >= MAX_CACHE_SIZE && stateCache_.find(key) == stateCache_.end()) {
+        // Simple strategy: remove a batch of entries when the cache is full
+        // This is more efficient than removing one at a time
+        size_t toRemove = MAX_CACHE_SIZE / 10; // Remove 10% of entries
         
-        for (auto it = stateCache_.begin(); it != stateCache_.end(); ++it) {
-            if (now - it->second.timestamp >= CACHE_TTL) {
-                stateCache_.erase(it);
-                removedExpired = true;
-                break;  // Found and removed one expired entry
-            }
-        }
-        
-        // If no expired entries were found but the cache is still full,
-        // remove the oldest entry (least recently used)
-        if (!removedExpired && stateCache_.size() >= MAX_CACHE_SIZE) {
-            auto oldestIt = stateCache_.begin();
-            auto oldestTime = oldestIt->second.timestamp;
-            
-            for (auto it = stateCache_.begin(); it != stateCache_.end(); ++it) {
-                if (it->second.timestamp < oldestTime) {
-                    oldestIt = it;
-                    oldestTime = it->second.timestamp;
-                }
-            }
-            
-            stateCache_.erase(oldestIt);
+        auto it = stateCache_.begin();
+        for (size_t i = 0; i < toRemove && it != stateCache_.end(); ++i) {
+            it = stateCache_.erase(it);
         }
     }
     
-    // Now we can safely add the new entry
-    stateCache_[time] = {state, now};
+    // Add to the main cache
+    stateCache_[key] = state;
+}
+
+void SatelliteComms::clearCache() const {
+    // Clear both caches
+    stateCache_.clear();
+    for (auto& entry : recentCache_) {
+        entry.first = std::numeric_limits<CacheKey>::min(); // Invalid key
+    }
+    recentCacheIndex_ = 0;
 }
 
 bool SatelliteComms::isInBeamCone(const Vector3& pointP, const SatelliteState& state) const {
@@ -289,21 +281,6 @@ bool SatelliteComms::isPlanetBlocking(const Vector3& pointP, const SatelliteStat
     
     // The planet blocks transmission if the closest approach is less than the planet's radius.
     return closestPoint.magnitude() < planetRadius_;
-}
-
-void SatelliteComms::clearCache() const {
-    stateCache_.clear();
-}
-
-void SatelliteComms::cleanExpiredCacheEntries() const {
-    auto now = std::chrono::steady_clock::now();
-    for (auto it = stateCache_.begin(); it != stateCache_.end();) {
-        if (now - it->second.timestamp >= CACHE_TTL) {
-            it = stateCache_.erase(it);
-        } else {
-            ++it;
-        }
-    }
 }
 
 double SatelliteComms::getAdaptiveStepSize(double currentTime, const Vector3& pointP) const {

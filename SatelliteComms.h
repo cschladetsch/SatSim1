@@ -7,13 +7,14 @@
 #include <algorithm>
 #include <stdexcept>
 #include <unordered_map>
+#include <array>
 #include <chrono>
 
 #include "Quaternion.h"
 
 inline bool doubleEquiv(double x, double y) {
     static constexpr double EPSILON = 1e-5;
-    return (x - y) < EPSILON;
+    return std::abs(x - y) < EPSILON;
 }
 
 /**
@@ -43,47 +44,6 @@ struct TimedSatelliteState {
 };
 
 /**
- * Hash function for doubles to enable state caching
- */
-struct DoubleHash {
-    std::size_t operator()(const double& val) const {
-        return std::hash<double>{}(val);
-    }
-};
-
-/**
- * Hash function for SatelliteState to enable state caching
- */
-struct StateHash {
-    std::size_t operator()(const SatelliteState& state) const {
-        std::size_t h1 = std::hash<double>{}(state.position.x);
-        std::size_t h2 = std::hash<double>{}(state.position.y);
-        std::size_t h3 = std::hash<double>{}(state.position.z);
-        std::size_t h4 = std::hash<double>{}(state.beamDirection.x);
-        std::size_t h5 = std::hash<double>{}(state.beamDirection.y);
-        std::size_t h6 = std::hash<double>{}(state.beamDirection.z);
-        
-        // Combine hashes
-        std::size_t result = h1;
-        result = (result << 1) ^ h2;
-        result = (result << 1) ^ h3;
-        result = (result << 1) ^ h4;
-        result = (result << 1) ^ h5;
-        result = (result << 1) ^ h6;
-        
-        return result;
-    }
-};
-
-/**
- * Cache entry with timestamp for expiration
- */
-struct CacheEntry {
-    SatelliteState state;
-    std::chrono::steady_clock::time_point timestamp;
-};
-
-/**
  * Satellite Communications system that determines when points in space
  * can receive transmissions from a satellite.
  */
@@ -94,7 +54,6 @@ public:
     
     // Cache configuration
     static constexpr std::size_t MAX_CACHE_SIZE = 1000;
-    static constexpr std::chrono::seconds CACHE_TTL{60}; // 60 seconds TTL
     
     /**
      * Constructs the satellite communications system.
@@ -166,16 +125,25 @@ private:
     double cosBeamConeAngle_;     // Pre-computed cosine of beam angle for faster checks
     std::vector<TimedSatelliteState> stateTimeline_;
     
-    // Cache for interpolated states
-    mutable std::unordered_map<double, CacheEntry, DoubleHash> stateCache_;
+    // Optimized cache key type using direct integer representation instead of double
+    using CacheKey = int64_t;
     
-    /**
-     * Helper method to add a state to the cache with proper management.
-     * Ensures the cache doesn't exceed MAX_CACHE_SIZE by removing entries when needed.
-     * 
-     * @param time The simulation time for this state
-     * @param state The satellite state to cache
-     */
+    // Cache optimization constants
+    static constexpr double TIME_QUANTIZATION = 0.01;  // Quantize time to 0.01 precision
+    static constexpr int64_t MAX_RECENT_CACHE_SIZE = 16; // Small MRU cache
+    
+    // Two-level caching: small recent-access array + main cache map
+    mutable std::array<std::pair<CacheKey, SatelliteState>, MAX_RECENT_CACHE_SIZE> recentCache_;
+    mutable size_t recentCacheIndex_ = 0;
+    mutable std::unordered_map<CacheKey, SatelliteState> stateCache_;
+    
+    // Cache management methods
+    CacheKey timeToKey(double time) const {
+        // Quantize to reduce floating point precision issues
+        // Converting to integer representation avoids expensive double hash calculations
+        return static_cast<CacheKey>(time / TIME_QUANTIZATION);
+    }
+    
     void addToCache(double time, const SatelliteState& state) const;
     
     /**
@@ -196,12 +164,6 @@ private:
      * @return true if the planet blocks transmission, false otherwise
      */
     bool isPlanetBlocking(const Vector3& pointP, const SatelliteState& state) const;
-    
-    /**
-     * Clean expired cache entries to prevent memory growth.
-     * Called periodically during cache access.
-     */
-    void cleanExpiredCacheEntries() const;
     
     /**
      * Helper method to determine adaptive step size for next transmission search.
