@@ -20,6 +20,9 @@ add_library(SatelliteComms
 add_executable(SatelliteApp main.cpp)
 target_link_libraries(SatelliteApp PRIVATE SatelliteComms)
 
+add_executable(Benchmark Benchmark.cpp)
+target_link_libraries(Benchmark PRIVATE SatelliteComms)
+
 # Testing setup
 enable_testing()
 
