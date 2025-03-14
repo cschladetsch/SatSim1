@@ -156,7 +156,7 @@ cmake --build .
 ./Benchmark
 ```
 
-![SampleBenchmark](/resources/benchmark.txt)
+[SampleBenchmark](/resources/benchmark.txt)
 
 ### Benchmark Scenarios
 
